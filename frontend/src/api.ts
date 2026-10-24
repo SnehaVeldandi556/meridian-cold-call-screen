@@ -388,7 +388,7 @@ export async function closeCall(callId: string, closeData: {
 }
 
 export async function requestLLMAssist(data: {
-  mode: 'objection_rebuttal' | 'need_extraction' | 'outcome_check' | 'whatsapp_draft';
+  mode: 'objection_rebuttal' | 'need_extraction' | 'outcome_check' | 'whatsapp_draft' | 'suggest_stage' | 'summarize_call';
   stage_number?: number;
   stage_name?: string;
   tap_result?: string;
@@ -399,7 +399,10 @@ export async function requestLLMAssist(data: {
   selected_outcome?: string;
   next_step?: string;
   stages_data?: any[];
+  typed_text?: string;
+  call_data?: any;
 }): Promise<any> {
+
   try {
     const res = await fetch(`${API_BASE}/api/llm/assist`, {
       method: 'POST',
@@ -427,6 +430,45 @@ export async function requestLLMAssist(data: {
         source: "client_copilot"
       };
     }
+    if (data.mode === 'suggest_stage') {
+      const words = (data.typed_text || data.prospect_words || '').toLowerCase();
+      if (words.includes('driving') || words.includes('meeting') || words.includes('call after') || words.includes('tomorrow')) {
+        return { suggested_stage: 3, stage_name: "Permission", confidence: 0.95, reason: "Prospect mentioning driving/busy/callback window." };
+      }
+      if (words.includes('captive') || words.includes('back office') || words.includes('already have') || words.includes('agency')) {
+        return { suggested_stage: 6, stage_name: "Objection", confidence: 0.95, reason: "Qualification or vendor objection raised." };
+      }
+      if (words.includes('capacity') || words.includes('utilization') || words.includes('struggling') || words.includes('bottleneck')) {
+        return { suggested_stage: 5, stage_name: "Their need, in their words", confidence: 0.9, reason: "Operational struggle or bottleneck voiced." };
+      }
+      if (words.includes('whatsapp') || words.includes('send') || words.includes('thursday') || words.includes('meeting')) {
+        return { suggested_stage: 7, stage_name: "Next step", confidence: 0.9, reason: "Agreeing on document or scheduled callback." };
+      }
+      return { suggested_stage: data.stage_number || 1, stage_name: `Stage ${data.stage_number || 1}`, confidence: 0.7, reason: "Consistent with current stage." };
+    }
+    if (data.mode === 'summarize_call') {
+      const words = (data.prospect_words || '').toLowerCase();
+      const nextStep = (data.next_step || '').toLowerCase();
+      if (words.includes('captive') || words.includes('back office')) {
+        return {
+          one_line_summary: "India back-office captive unit with no local commercial authority.",
+          recommended_outcome: "do_not_call",
+          honest_rationale: "Global headquarters holds all vendor mandates."
+        };
+      }
+      if (nextStep.includes('thursday') || nextStep.includes('friday') || nextStep.includes('pm')) {
+        return {
+          one_line_summary: `Agreed to follow-up call on ${data.next_step} to review diagnostic findings.`,
+          recommended_outcome: "next_step_agreed",
+          honest_rationale: "Specific callback time named by prospect."
+        };
+      }
+      return {
+        one_line_summary: `Prospect agreed to receive diagnostic document on WhatsApp.`,
+        recommended_outcome: "agreed_to_receive_report",
+        honest_rationale: "Agreed to asynchronous document review."
+      };
+    }
     if (data.mode === 'whatsapp_draft') {
       return {
         whatsapp_text: `Hi ${data.prospect_name?.split(' ')[0] || 'Sir'} ji, Priya here from Meridian Growth Partners. Sharing our brief growth note for ${data.company || 'your team'} as discussed. Looking forward to our follow-up!`,
@@ -436,6 +478,7 @@ export async function requestLLMAssist(data: {
     return { advice: "Outcome looks consistent with call stage progression.", source: "client_copilot" };
   }
 }
+
 
 export async function fetchTranscripts(params?: { outcome?: string; search?: string }): Promise<TranscriptSummary[]> {
   try {

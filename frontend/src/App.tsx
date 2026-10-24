@@ -188,9 +188,11 @@ export const App: React.FC = () => {
               onNextStage={handleNextStage}
               onPrevStage={handlePrevStage}
               onEndCallEarly={() => setIsCloseModalOpen(true)}
+              onSelectStage={handleSelectStage}
               formatDuration={formatDuration}
               callDuration={callDuration}
             />
+
           </div>
         )}
 

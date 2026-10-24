@@ -11,7 +11,15 @@ load_dotenv()
 from database import init_db, fetch_calls, fetch_call_by_id, insert_call, save_stage_record, finalize_call
 from stages_data import STAGES_DATA, OUTCOME_DEFINITIONS
 from models import CallCreateRequest, StageSaveRequest, CallCloseRequest, LLMAssistRequest
-from llm_service import assist_objection_rebuttal, assist_need_extraction, assist_outcome_advisor, assist_whatsapp_draft
+from llm_service import (
+    assist_objection_rebuttal,
+    assist_need_extraction,
+    assist_outcome_advisor,
+    assist_whatsapp_draft,
+    assist_suggest_stage,
+    assist_summarize_call,
+    get_active_provider
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("coldcall.api")
@@ -136,12 +144,42 @@ def close_call(call_id: str, payload: CallCloseRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 # 4. LLM Assistant Endpoint
+@app.get("/api/llm/provider", tags=["AI Copilot"])
+def get_llm_provider():
+    """Returns the currently active LLM backend provider."""
+    return {
+        "active_provider": get_active_provider(),
+        "supported_free_tier_keys": ["GEMINI_API_KEY", "CEREBRAS_API_KEY", "MISTRAL_API_KEY"],
+        "security_note": "API keys are securely held on the Render backend; never exposed to the client browser."
+    }
+
 @app.post("/api/llm/assist", tags=["AI Copilot"])
 async def llm_assist(payload: LLMAssistRequest):
-    """Provides real-time AI assistance: objection rebuttals, Stage 5 need analysis, outcome checks, and WhatsApp messages."""
+    """Provides real-time AI assistance: stage suggestion, objection rebuttals, Stage 5 need analysis, call summarization, and WhatsApp messages."""
     mode = payload.mode
     
-    if mode == "objection_rebuttal":
+    if mode == "suggest_stage":
+        res = await assist_suggest_stage(
+            typed_text=payload.typed_text or payload.prospect_words or "",
+            current_stage=payload.stage_number or 1
+        )
+        return res
+
+    elif mode == "summarize_call":
+        res = await assist_summarize_call(
+            call_data=payload.call_data or {
+                "prospect_name": payload.prospect_name,
+                "company": payload.company,
+                "prospect_role": payload.role,
+                "stage_reached": payload.stage_number or 8,
+                "stage_5_need_verbatim": payload.prospect_words,
+                "next_step_details": payload.next_step,
+                "stages": payload.stages_data or []
+            }
+        )
+        return res
+        
+    elif mode == "objection_rebuttal":
         res = await assist_objection_rebuttal(
             stage_number=payload.stage_number or 6,
             stage_name=payload.stage_name or "Objection",
@@ -180,6 +218,7 @@ async def llm_assist(payload: LLMAssistRequest):
         
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported LLM mode: {mode}")
+
 
 # 5. Transcripts Explorer & Simulator Endpoints
 @app.get("/api/transcripts", tags=["100 Transcripts"])

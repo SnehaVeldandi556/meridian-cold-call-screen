@@ -26,9 +26,11 @@ interface LiveCallerScreenProps {
   onNextStage: () => void;
   onPrevStage: () => void;
   onEndCallEarly: () => void;
+  onSelectStage?: (stageNumber: number) => void;
   formatDuration: (secs: number) => string;
   callDuration: number;
 }
+
 
 export const LiveCallerScreen: React.FC<LiveCallerScreenProps> = ({
   currentStage,
@@ -39,6 +41,7 @@ export const LiveCallerScreen: React.FC<LiveCallerScreenProps> = ({
   onNextStage,
   onPrevStage,
   onEndCallEarly,
+  onSelectStage,
   formatDuration,
   callDuration
 }) => {
@@ -53,13 +56,17 @@ export const LiveCallerScreen: React.FC<LiveCallerScreenProps> = ({
   );
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
   const [copiedQuoteIndex, setCopiedQuoteIndex] = useState<number | null>(null);
+  const [stageSuggestion, setStageSuggestion] = useState<{ suggested_stage: number; stage_name: string; reason: string } | null>(null);
+  const [isDetectingStage, setIsDetectingStage] = useState<boolean>(false);
 
   // Sync state when stage changes
   useEffect(() => {
     setSelectedTap(stageRecord?.tap_result || currentStage.taps[0]?.label || '');
     setProspectWords(stageRecord?.prospect_words || '');
     setAiSuggestion(stageRecord?.ai_suggestion || '');
+    setStageSuggestion(null);
   }, [currentStage.number, stageRecord]);
+
 
   // Handle tap button selection
   const handleTapSelect = (tapLabel: string) => {
@@ -120,9 +127,32 @@ export const LiveCallerScreen: React.FC<LiveCallerScreenProps> = ({
     }
   };
 
+  // Suggest stage from what caller just typed
+  const handleDetectStage = async () => {
+    if (!prospectWords.trim()) return;
+    setIsDetectingStage(true);
+    try {
+      const res = await requestLLMAssist({
+        mode: 'suggest_stage',
+        typed_text: prospectWords,
+        stage_number: currentStage.number
+      });
+      if (res && res.suggested_stage && res.suggested_stage !== currentStage.number) {
+        setStageSuggestion(res);
+      } else {
+        setStageSuggestion(null);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsDetectingStage(false);
+    }
+  };
+
   const nextStageObj = allStages.find(s => s.number === currentStage.number + 1);
 
   return (
+
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       {/* 1. Prospect Header Banner (Reference Screen style) */}
       <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm">
@@ -364,11 +394,23 @@ export const LiveCallerScreen: React.FC<LiveCallerScreenProps> = ({
                   {currentStage.number === 5 ? "Their Need · Verbatim Words" : "Prospect's Own Words"}
                 </h3>
               </div>
-              {currentStage.number === 5 && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black bg-[#0029FF] text-white">
-                  CRITICAL STAGE
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleDetectStage}
+                  disabled={isDetectingStage || !prospectWords.trim()}
+                  className="flex items-center gap-1 text-[11px] font-bold text-[#0029FF] hover:bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-colors disabled:opacity-40"
+                  title="Use LLM to suggest which stage this belongs to"
+                >
+                  <Sparkles className="w-3 h-3 text-[#0029FF]" />
+                  <span>{isDetectingStage ? 'Detecting Stage...' : 'Detect Stage'}</span>
+                </button>
+                {currentStage.number === 5 && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black bg-[#0029FF] text-white">
+                    CRITICAL STAGE
+                  </span>
+                )}
+              </div>
             </div>
 
             {currentStage.number === 5 ? (
@@ -380,6 +422,28 @@ export const LiveCallerScreen: React.FC<LiveCallerScreenProps> = ({
                 The only free text on the screen. Type what you heard in their literal words.
               </p>
             )}
+
+            {stageSuggestion && (
+              <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between text-xs text-blue-900 animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold">💡 AI Stage Suggestion:</span>
+                  <span>Prospect words indicate <strong>Stage {stageSuggestion.suggested_stage} ({stageSuggestion.stage_name})</strong> — {stageSuggestion.reason}</span>
+                </div>
+                {onSelectStage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelectStage(stageSuggestion.suggested_stage);
+                      setStageSuggestion(null);
+                    }}
+                    className="ml-2 px-3 py-1 bg-[#0029FF] text-white rounded text-[11px] font-bold shrink-0 hover:bg-blue-700 transition-colors"
+                  >
+                    Switch to Stage {stageSuggestion.suggested_stage}
+                  </button>
+                )}
+              </div>
+            )}
+
 
             <textarea
               rows={currentStage.number === 5 ? 4 : 3}

@@ -17,32 +17,44 @@
 
 ---
 
-## 🤖 The LLM in It: Which Model and For What
+## 🤖 The LLM in It: Providers, Security Architecture & Capabilities
 
-This product integrates **Google Gemini 1.5 Flash** (with fallback support for Groq LLaMA 3.3 70B and client-side deterministic copilots). We deliberately chose Gemini 1.5 Flash for its sub-second latency, generous free tier rate limits (15 RPM / 1M TPM free), and high reasoning quality on conversational nuance.
+### Free Key Providers Supported:
+Our Render backend securely supports three premier free-tier LLM providers. You can register a free key with any one of them and set it in your Render environment variables:
 
-### What the LLM is used for:
+1. **Google Gemini (Google AI Studio)**: `GEMINI_API_KEY` ([Get a free key](https://aistudio.google.com/apikey))
+   - Uses `gemini-1.5-flash` for high reasoning and instant responsiveness.
+2. **Cerebras Cloud (Cerebras Inference)**: `CEREBRAS_API_KEY` ([Get a free key](https://cloud.cerebras.ai/))
+   - Uses `llama3.1-8b` / `llama-3.3-70b` running on the Cerebras CS-3 wafer engine (~1,000 tokens/sec speed, ultra-low latency for live phone calls).
+3. **Mistral AI (La Plateforme)**: `MISTRAL_API_KEY` ([Get a free key](https://console.mistral.ai/))
+   - Uses `mistral-small-latest` for multilingual European & Indian conversational parsing.
 
-1. **Mid-Call Live Objection Coach (`POST /api/llm/assist?mode=objection_rebuttal`)**:
-   - When a prospect raises an objection (e.g. *"We are an MNC subsidiary, all consultants are engaged via global contract"* or *"Send it on WhatsApp first"*), the caller taps the objection card or types 2 words.
-   - The LLM instantly returns a **calm, 1-2 sentence spoken pivot** crafted specifically for Indian business etiquette. It never sounds defensive or salesy.
-   - *Example prompt/output:* Acknowledges that global contracts lock local teams, then pivots to ask: *"Who at the regional APAC commercial team evaluates plant capacity benchmarks?"*
+### 🔒 Security Architecture: Keys in Backend, Never in the Browser
+> **A key that sits in the browser is visible to anyone who opens the page (via DevTools, Network logs, or JavaScript source inspection).**
+> Therefore, the frontend client never holds or touches any API key. The Render backend securely reads keys from server-side environment variables (`GEMINI_API_KEY`, `CEREBRAS_API_KEY`, or `MISTRAL_API_KEY`) and exposes an internal proxy endpoint (`POST /api/llm/assist` and `GET /api/llm/provider`). The browser screen simply asks the backend.
 
-2. **Stage 5 Verbatim Need Extraction (`POST /api/llm/assist?mode=need_extraction`)**:
-   - Stage 5 (*"Their need, in their words"*) is the single stage where the caller records the prospect's literal words.
-   - Callers often capture messy, rushed speech. The LLM extracts:
-     - **Core Operational Bottleneck** (e.g. *"65% capacity utilization in secondary plant, vendor audit delays"*).
-     - **Recommended Next Diagnostic Question** to deepen the conversation before pitching.
+### What the LLM Does:
 
-3. **Stage 8 Outcome Honesty Auditor (`POST /api/llm/assist?mode=outcome_check`)**:
-   - Analysis of the 100 transcripts revealed that **callers frequently suffer from optimistic logging bias** (e.g., logging `agreed_to_receive_report` or `interested` when the prospect actually gave a polite brush-off like *"Send on WhatsApp, I will see later if I need"*).
-   - Before a call record is saved, the LLM compares the prospect's recorded words across all stages against the caller's chosen outcome tag. If a mismatch is detected, it alerts the caller and recommends the truthful tag (e.g., `not_interested` or `follow_up`) to prevent pipeline inflation.
+1. **Suggest the Stage from What the Caller Just Typed (`POST /api/llm/assist?mode=suggest_stage`)**:
+   - As the caller types or captures prospect dialogue in "Prospect's own words" (e.g. *"I am driving right now, call tomorrow after 2 PM"* or *"We already have an in-house team"*), clicking **"Detect Stage"** calls the LLM.
+   - The LLM identifies which of the 8 stages the call has transitioned into and suggests a 1-click jump (e.g., *"Prospect indicated Stage 3 (Permission): Handling time availability or callback window"*).
+   - This prevents the caller from getting stuck on an early stage when the prospect has already moved the conversation forward.
 
-4. **1-Click WhatsApp Follow-Up Dispatcher (`POST /api/llm/assist?mode=whatsapp_draft`)**:
-   - In India, 80%+ of cold call next steps happen on WhatsApp.
-   - The LLM drafts a concise, personalized WhatsApp message under 40 words referencing their exact need and locked next step, ready to copy-paste immediately after hanging up.
+2. **Draft the One-Line Summary & Honest Outcome of a Finished Call (`POST /api/llm/assist?mode=summarize_call`)**:
+   - In the Close Call modal, clicking **"AI Draft 1-Line Summary"** analyzes all captured notes and generates a crisp one-line summary (e.g., *"Prospect acknowledged chemical unit cost overruns; locked Thursday 4 PM callback"*).
+   - It also cross-examines the prospect's actual words against the caller's chosen outcome tag to catch **optimistic logging bias** (e.g., warning if the caller logged `interested` when the prospect gave a polite brush-off like *"Send on WhatsApp, I will see later if I need"*).
+
+3. **Stage 5 Verbatim Need Extraction (`POST /api/llm/assist?mode=need_extraction`)**:
+   - Extracts the core operational bottleneck from messy spoken words and suggests the next diagnostic question to ask.
+
+4. **Mid-Call Live Objection Coach (`POST /api/llm/assist?mode=objection_rebuttal`)**:
+   - Generates an immediate, calm, 1-2 sentence spoken pivot for Indian B2B objections (MNC captive lockout, incumbent agencies, gatekeepers).
+
+5. **1-Click WhatsApp Follow-up Dispatcher (`POST /api/llm/assist?mode=whatsapp_draft`)**:
+   - Generates a ready-to-dispatch WhatsApp follow-up under 40 words tailored to the conversation.
 
 ---
+
 
 ## 📊 Key Findings from Reading 100 Real Cold-Call Transcripts
 

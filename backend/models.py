@@ -28,7 +28,7 @@ class CallCloseRequest(BaseModel):
     whatsapp_draft: Optional[str] = None
 
 class LLMAssistRequest(BaseModel):
-    mode: str = Field(..., example="objection_rebuttal") # 'objection_rebuttal', 'need_extraction', 'outcome_check', 'whatsapp_draft'
+    mode: str = Field(..., example="objection_rebuttal") # 'objection_rebuttal', 'need_extraction', 'outcome_check', 'whatsapp_draft', 'suggest_stage', 'summarize_call'
     stage_number: Optional[int] = None
     stage_name: Optional[str] = None
     tap_result: Optional[str] = None
@@ -39,3 +39,5 @@ class LLMAssistRequest(BaseModel):
     selected_outcome: Optional[str] = None
     next_step: Optional[str] = None
     stages_data: Optional[List[dict]] = None
+    typed_text: Optional[str] = None
+    call_data: Optional[dict] = None
