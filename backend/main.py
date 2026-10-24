@@ -47,13 +47,21 @@ def load_transcripts_index():
     global TRANSCRIPTS_CACHE
     if TRANSCRIPTS_CACHE:
         return TRANSCRIPTS_CACHE
-    try:
-        t_path = os.path.join(os.path.dirname(__file__), "..", "transcripts", "cold-call-transcripts-100", "index.json")
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "transcripts", "cold-call-transcripts-100", "index.json"),
+        os.path.join(os.path.dirname(__file__), "..", "transcripts", "cold-call-transcripts-100", "index.json"),
+        "/app/backend/transcripts/cold-call-transcripts-100/index.json",
+        "/app/transcripts/cold-call-transcripts-100/index.json"
+    ]
+    for t_path in candidates:
         if os.path.exists(t_path):
-            with open(t_path, encoding="utf-8") as f:
-                TRANSCRIPTS_CACHE = json.load(f)
-    except Exception as e:
-        logger.warning(f"Could not load transcripts index: {e}")
+            try:
+                with open(t_path, encoding="utf-8") as f:
+                    TRANSCRIPTS_CACHE = json.load(f)
+                    logger.info(f"Loaded {len(TRANSCRIPTS_CACHE)} transcripts from {t_path}")
+                    break
+            except Exception as e:
+                logger.warning(f"Error reading index from {t_path}: {e}")
     return TRANSCRIPTS_CACHE
 
 @app.on_event("startup")
@@ -243,9 +251,19 @@ def list_transcripts(
 def get_transcript(transcript_id: str):
     """Returns the full text and parsed turns of a specific transcript."""
     tid = transcript_id.upper()
-    t_file = os.path.join(os.path.dirname(__file__), "..", "transcripts", "cold-call-transcripts-100", "transcripts", f"{tid}.txt")
-    if not os.path.exists(t_file):
-        raise HTTPException(status_code=404, detail="Transcript file not found")
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "transcripts", "cold-call-transcripts-100", "transcripts", f"{tid}.txt"),
+        os.path.join(os.path.dirname(__file__), "..", "transcripts", "cold-call-transcripts-100", "transcripts", f"{tid}.txt"),
+        f"/app/backend/transcripts/cold-call-transcripts-100/transcripts/{tid}.txt",
+        f"/app/transcripts/cold-call-transcripts-100/transcripts/{tid}.txt"
+    ]
+    t_file = None
+    for c in candidates:
+        if os.path.exists(c):
+            t_file = c
+            break
+    if not t_file:
+        raise HTTPException(status_code=404, detail=f"Transcript file {tid}.txt not found")
         
     with open(t_file, encoding="utf-8") as f:
         content = f.read()
