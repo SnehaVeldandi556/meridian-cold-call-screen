@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from datetime import datetime, timezone
+from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
